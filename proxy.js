@@ -83,6 +83,7 @@ app.post('/auth/telegram/request-code', async (req, res) => {
   }
 
   const identifier = String(req.body?.identifier || '').trim();
+  console.log(`🔐 Login code requested for: ${identifier || '(empty)'}`);
   if (!identifier) {
     res.status(400).json({ error: 'Thiếu Telegram ID hoặc username.' });
     return;
@@ -90,6 +91,7 @@ app.post('/auth/telegram/request-code', async (req, res) => {
 
   const telegramUser = findTelegramUser(identifier);
   if (!telegramUser) {
+    console.warn(`⚠️ Telegram user not found for identifier: ${identifier}`);
     res.status(404).json({
       error: 'Bot chưa thấy tài khoản này. Hãy mở bot, nhắn /start hoặc /get trước rồi thử lại.'
     });
@@ -120,12 +122,14 @@ app.post('/auth/telegram/request-code', async (req, res) => {
         parse_mode: 'HTML'
       }
     );
+    console.log(`✅ Login code sent to ${formatTelegramHandle(telegramUser)} (${telegramUser.chatId})`);
 
     res.json({
       ok: true,
       message: `Bot đã gửi mã đăng nhập tới ${formatTelegramHandle(telegramUser)}.`
     });
   } catch (error) {
+    console.error(`❌ Failed to send login code to ${formatTelegramHandle(telegramUser)}: ${error.message}`);
     res.status(502).json({ error: `Không thể gửi mã qua bot: ${error.message}` });
   }
 });

@@ -271,6 +271,7 @@ export function mountTelegramAuth() {
     }
 
     await withBusy(async () => {
+      showStatus("Đang gửi mã đăng nhập qua Telegram...", "info", true);
       const data = await fetchJson("/auth/telegram/request-code", {
         method: "POST",
         body: JSON.stringify({ identifier })
@@ -397,13 +398,22 @@ export function mountTelegramAuth() {
   }
 
   async function fetchJson(path, options = {}) {
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(options.headers || {})
-      }
-    });
+    let response;
+    try {
+      response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        }
+      });
+    } catch (error) {
+      const isFileOrigin = window.location.protocol === "file:";
+      const defaultMessage = isFileOrigin
+        ? "Web đang được mở trực tiếp từ file. Hãy chạy bằng http://localhost:3000 rồi thử lại."
+        : "Không kết nối được tới server đăng nhập. Kiểm tra lại app đang chạy ở http://localhost:3000.";
+      throw new Error(error?.message === "Failed to fetch" ? defaultMessage : (error?.message || defaultMessage));
+    }
 
     const text = await response.text();
     const data = text ? safeJsonParse(text) : {};
