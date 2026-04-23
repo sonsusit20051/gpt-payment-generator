@@ -305,7 +305,7 @@ export function mountTelegramAuth() {
         authToken: data.authToken,
         ...data.session
       });
-      showStatus("Đăng nhập thành công, sếp cần gì thì hú em nha", "success", true);
+      showStatus("Đăng nhập thành công, sếp cần gì thì hú @sonmoi2409 nhé", "success", true);
       els.codeInput.value = "";
 
       window.setTimeout(() => {
