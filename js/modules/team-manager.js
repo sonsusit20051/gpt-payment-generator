@@ -1,4 +1,4 @@
-const PROXY = "";
+const PROXY = window.location.protocol === "file:" ? "http://localhost:3000" : "";
 const MAX_LIST_LIMIT = 100;
 const AUTO_REFRESH_INTERVAL_MS = 60000;
 
