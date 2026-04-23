@@ -1,5 +1,7 @@
 const API_BASE = window.location.protocol === "file:" ? "http://localhost:3000" : "";
 const AUTH_STORAGE_KEY = "mMoiTelegramAuth";
+const TEAM_STORAGE_KEY = "teams";
+const GENERATED_LINK_COUNT_STORAGE_KEY = "mMoiGeneratedLinkCount";
 
 export function mountTelegramAuth() {
   const els = cacheElements();
@@ -298,7 +300,11 @@ export function mountTelegramAuth() {
     await withBusy(async () => {
       const data = await fetchJson("/auth/telegram/verify-code", {
         method: "POST",
-        body: JSON.stringify({ identifier, code })
+        body: JSON.stringify({
+          identifier,
+          code,
+          clientStats: collectClientStats()
+        })
       });
 
       persistSession({
@@ -395,6 +401,38 @@ export function mountTelegramAuth() {
           "X-Community-Auth": token
         }
       : {};
+  }
+
+  function collectClientStats() {
+    const teams = loadStoredTeams();
+    const teamCount = teams.length;
+    const memberCount = teams.reduce((total, team) => {
+      const lastMemberCount = Number.parseInt(team?.lastMemberCount, 10);
+      if (Number.isFinite(lastMemberCount) && lastMemberCount >= 0) {
+        return total + lastMemberCount;
+      }
+      return total + (Array.isArray(team?.lastMembers) ? team.lastMembers.length : 0);
+    }, 0);
+
+    return {
+      teamCount,
+      memberCount,
+      convertedLinkCount: readStoredNumber(GENERATED_LINK_COUNT_STORAGE_KEY)
+    };
+  }
+
+  function loadStoredTeams() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TEAM_STORAGE_KEY) || "[]");
+      return Array.isArray(raw) ? raw : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function readStoredNumber(key) {
+    const value = Number.parseInt(localStorage.getItem(key) || "0", 10);
+    return Number.isFinite(value) && value >= 0 ? value : 0;
   }
 
   async function fetchJson(path, options = {}) {

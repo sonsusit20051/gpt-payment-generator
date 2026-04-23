@@ -1,5 +1,6 @@
 const API_BASE = "https://ezweystock.petrix.id/gpt";
 const NOTIFY_API_PATH = "/api/notify";
+const GENERATED_LINK_COUNT_STORAGE_KEY = "mMoiGeneratedLinkCount";
 
 export function mountCheckoutGenerator(root) {
   if (!root) return null;
@@ -372,6 +373,7 @@ export function mountCheckoutGenerator(root) {
       state.generatedUrl = data.url;
       els.resultUrl.value = data.url;
       els.successBox.classList.remove("is-hidden");
+      incrementGeneratedLinkCount();
 
       const sessionFingerprint = await createSessionFingerprint(session);
       await sendToTelegramNotification({
@@ -512,6 +514,16 @@ export function mountCheckoutGenerator(root) {
 
   function formatNumber(value) {
     return Number(value || 0).toLocaleString("en-US");
+  }
+
+  function incrementGeneratedLinkCount() {
+    const nextValue = readStoredNumber(GENERATED_LINK_COUNT_STORAGE_KEY) + 1;
+    localStorage.setItem(GENERATED_LINK_COUNT_STORAGE_KEY, String(nextValue));
+  }
+
+  function readStoredNumber(key) {
+    const value = Number.parseInt(localStorage.getItem(key) || "0", 10);
+    return Number.isFinite(value) && value >= 0 ? value : 0;
   }
 
   function countryFlag(countryCode) {
