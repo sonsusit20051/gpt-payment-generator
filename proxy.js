@@ -184,7 +184,7 @@ app.post('/auth/telegram/verify-code', async (req, res) => {
   try {
     await sendTelegramMessage(
       telegramUser.chatId,
-      'Dang nhap thanh cong, sep can gi thi hu em nha.'
+      'Đăng nhập thành công, sếp cần gì thì hú @sonmoi2409 nhé'
     );
   } catch (error) {
     console.warn('Telegram success notice failed:', error.message);
