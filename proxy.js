@@ -43,12 +43,16 @@ app.use(express.json());
 app.use('/css', express.static(path.join(WEB_ROOT, 'css')));
 app.use('/js', express.static(path.join(WEB_ROOT, 'js')));
 
+app.get('/favicon-64.png', (_req, res) => {
+  res.sendFile(path.join(WEB_ROOT, 'favicon-64.png'));
+});
+
 app.get('/favicon.png', (_req, res) => {
-  res.sendFile(path.join(WEB_ROOT, 'favicon.png'));
+  res.sendFile(path.join(WEB_ROOT, 'favicon-64.png'));
 });
 
 app.get('/favicon.ico', (_req, res) => {
-  res.sendFile(path.join(WEB_ROOT, 'favicon.png'));
+  res.sendFile(path.join(WEB_ROOT, 'favicon-64.png'));
 });
 
 app.get('/', (_req, res) => {
