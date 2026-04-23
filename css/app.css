@@ -1173,12 +1173,56 @@ button {
 
 @media (max-width: 720px) {
   .app-frame {
-    width: calc(100% - 20px);
-    padding-top: 214px;
+    width: calc(100% - 16px);
+    padding: 14px 0 28px;
+  }
+
+  .app-header {
+    position: sticky;
+    padding: 8px 8px 0;
+  }
+
+  .app-header__bar {
+    gap: 12px;
+    padding: 12px;
+    border-radius: 20px;
+  }
+
+  .app-header__identity {
+    width: 100%;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .app-logo {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+  }
+
+  .app-header__eyebrow {
+    margin-bottom: 6px;
+    font-size: 9px;
+  }
+
+  .app-header__subtitle--fixed {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .app-header__actions {
+    gap: 10px;
+  }
+
+  .app-auth {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 56px;
+    gap: 10px;
+    align-items: stretch;
   }
 
   .module-hero {
-    padding: 24px;
+    padding: 20px;
   }
 
   .module-toolbar,
@@ -1189,6 +1233,7 @@ button {
 
   .modal__actions--spread {
     justify-content: flex-end;
+    align-items: stretch;
   }
 
   .app-nav,
@@ -1201,5 +1246,106 @@ button {
   .secondary-action,
   .app-auth__button {
     width: 100%;
+  }
+
+  .app-nav {
+    padding: 4px;
+    gap: 6px;
+  }
+
+  .app-nav__button {
+    min-height: 48px;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .app-auth__button,
+  .app-auth__telegram {
+    min-height: 50px;
+  }
+
+  .app-auth__button {
+    min-width: 0;
+    max-width: none;
+    padding: 12px 16px;
+  }
+
+  .app-auth__telegram {
+    width: 56px;
+    min-width: 56px;
+    font-size: 22px;
+  }
+
+  .home-hero {
+    min-height: auto;
+    padding: 22px 18px;
+    gap: 14px;
+  }
+
+  .home-hero__title {
+    font-size: clamp(2.75rem, 18vw, 4.8rem);
+    line-height: 0.9;
+  }
+
+  .home-hero__copy {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .home-note {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .home-note__title {
+    font-size: 19px;
+  }
+
+  .info-strip {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .modal {
+    padding: 8px;
+    align-items: end;
+  }
+
+  .modal__dialog,
+  .modal__dialog--wide {
+    width: 100%;
+    max-height: calc(100vh - 16px);
+    padding: 18px;
+    overflow-y: auto;
+    border-radius: 22px;
+  }
+
+  .modal__head {
+    margin-bottom: 16px;
+  }
+
+  .modal__head h3 {
+    font-size: 24px;
+  }
+
+  .auth-session-card h4,
+  .status-card__head h4 {
+    font-size: 20px;
+  }
+
+  .status-banner {
+    padding: 12px 14px;
+    border-radius: 18px;
+  }
+
+  .control-input {
+    min-height: 52px;
+    padding: 12px 16px;
+  }
+
+  .control-textarea {
+    padding: 14px 16px;
   }
 }

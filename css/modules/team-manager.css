@@ -429,3 +429,110 @@
     flex-direction: column;
   }
 }
+
+@media (max-width: 720px) {
+  .tm-stream-panel,
+  .tm-team-card,
+  .tm-settings-card,
+  .tm-members-panel {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .tm-stream-panel__head,
+  .tm-members-panel__head,
+  .tm-settings-card__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tm-dashboard-card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .tm-dashboard-card__value,
+  .tm-dashboard-card--wide .tm-dashboard-card__value {
+    font-size: clamp(2.2rem, 13vw, 3.6rem);
+  }
+
+  .tm-dashboard-card__meta {
+    margin-top: 16px;
+    padding-top: 10px;
+  }
+
+  .tm-team-tile {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .tm-team-tile__rail {
+    min-width: 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 10px;
+  }
+
+  .tm-team-tile__title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tm-team-tile__title {
+    font-size: 18px;
+  }
+
+  .tm-team-card__title-row h3 {
+    font-size: clamp(2.2rem, 15vw, 3.6rem);
+    line-height: 0.94;
+  }
+
+  .tm-team-card__email {
+    font-size: 14px;
+  }
+
+  .tm-action-group {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .tm-action-group > * {
+    width: 100%;
+  }
+
+  .tm-meta-item {
+    border-radius: 16px;
+  }
+
+  .tm-members-area {
+    padding-top: 14px;
+  }
+
+  .tm-member-row {
+    align-items: flex-start;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .tm-member-row__identity,
+  .tm-member-row__meta {
+    width: 100%;
+  }
+
+  .tm-member-row__identity {
+    align-items: flex-start;
+  }
+
+  .tm-member-row__meta {
+    justify-content: flex-start;
+  }
+
+  .tm-member-role--owner,
+  .tm-member-role--member {
+    letter-spacing: 0.12em;
+  }
+}
