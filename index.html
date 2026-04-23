@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M MOI Community</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/modules/checkout-generator.css">
+  <link rel="stylesheet" href="css/modules/team-manager.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__bar">
+        <div class="app-header__identity">
+          <div class="app-logo">M</div>
+          <div>
+            <p class="label-mono app-header__eyebrow">M MOI Community</p>
+            <p class="app-header__subtitle app-header__subtitle--fixed">Control surface for community tools.</p>
+          </div>
+        </div>
+        <div class="app-header__actions">
+          <nav class="app-nav" aria-label="Community apps">
+            <button class="app-nav__button is-active" type="button" data-community-view="home">Trang chủ</button>
+            <button class="app-nav__button" type="button" data-community-view="checkout-generator">Checkout Generator</button>
+            <button class="app-nav__button" type="button" data-community-view="team-manager">Team Manager</button>
+          </nav>
+
+          <div class="app-auth">
+            <button id="auth-open-button" class="app-auth__button" type="button">
+              <i class="fas fa-user"></i>
+              <span id="auth-user-label">Đăng nhập</span>
+            </button>
+            <a
+              id="auth-telegram-link"
+              class="app-auth__telegram"
+              href="#"
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="Open Telegram bot"
+            >
+              <i class="fa-brands fa-telegram"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-frame">
+      <section class="community-view" data-community-panel="home">
+        <div class="module-stack">
+          <section class="surface-card home-hero">
+            <p class="label-mono home-hero__eyebrow">M MOI Community</p>
+            <h1 class="home-hero__title" data-text="M MOI COMMUNITY">M MOI COMMUNITY</h1>
+            <p class="home-hero__copy">e moi chưa biết làm gì</p>
+          </section>
+        </div>
+      </section>
+
+      <section class="community-view is-hidden" data-community-panel="checkout-generator">
+        <div id="checkout-generator-module" class="module-stack">
+          <section class="checkout-stats">
+            <article class="surface-card checkout-stat">
+              <div class="checkout-stat__head">
+                <p class="label-mono checkout-stat__label">Total Generated</p>
+                <span class="checkout-icon-badge"><i class="fas fa-bolt"></i></span>
+              </div>
+              <p id="cg-stat-total" class="checkout-stat__value">0</p>
+              <p class="checkout-stat__meta">All time</p>
+            </article>
+            <article class="surface-card checkout-stat checkout-stat--mint">
+              <div class="checkout-stat__head">
+                <p class="label-mono checkout-stat__label">Business</p>
+                <span class="checkout-icon-badge checkout-icon-badge--accent"><i class="fas fa-users"></i></span>
+              </div>
+              <p id="cg-stat-team" class="checkout-stat__value">0</p>
+              <p class="checkout-stat__meta">All time</p>
+            </article>
+            <article class="surface-card checkout-stat">
+              <div class="checkout-stat__head">
+                <p class="label-mono checkout-stat__label">Plus</p>
+                <span class="checkout-icon-badge"><i class="fas fa-star"></i></span>
+              </div>
+              <p id="cg-stat-plus" class="checkout-stat__value">0</p>
+              <p class="checkout-stat__meta">All time</p>
+            </article>
+          </section>
+
+          <section class="surface-card checkout-panel">
+            <div class="checkout-panel__header">
+              <div>
+                <p class="label-mono">Generator</p>
+                <h3>Select plan / region / session</h3>
+              </div>
+            </div>
+
+            <div id="cg-plan-grid" class="checkout-plan-grid">
+              <button type="button" class="checkout-plan is-active" data-plan="team" aria-pressed="true">
+                <span class="checkout-icon-badge"><i class="fas fa-building"></i></span>
+                <p class="label-mono">Plan</p>
+                <h4>GPT Team / Business</h4>
+                <p>Team plan up to 5 seats</p>
+                <span data-price>USD 0</span>
+              </button>
+              <button type="button" class="checkout-plan" data-plan="plus" aria-pressed="false">
+                <span class="checkout-icon-badge"><i class="fas fa-crown"></i></span>
+                <p class="label-mono">Plan</p>
+                <h4>GPT Plus</h4>
+                <p>Personal subscription</p>
+                <span data-price>USD 0</span>
+              </button>
+            </div>
+
+            <div class="checkout-form-grid">
+              <div class="field-stack">
+                <label class="label-mono checkout-field-label" for="cg-payment-method"><i class="fas fa-credit-card"></i><span>Payment Method</span></label>
+                <select id="cg-payment-method" class="control-input">
+                  <option value="shortlink">Direct Checkout via ChatGPT</option>
+                  <option value="longlink">Stripe Hosted via Stripe</option>
+                </select>
+              </div>
+
+              <div class="field-stack field-stack--full">
+                <label class="label-mono checkout-field-label" for="cg-country-search"><i class="fas fa-earth-asia"></i><span>Currency Region</span></label>
+                <div id="cg-country-dropdown" class="dropdown-shell">
+                  <div id="cg-dropdown-input-wrap" class="control-input dropdown-shell__bar">
+                    <input id="cg-country-search" type="text" class="dropdown-shell__input" placeholder="Search country or currency..." autocomplete="off" aria-expanded="false" aria-controls="cg-country-menu">
+                    <button id="cg-country-toggle" type="button" class="dropdown-shell__toggle" aria-label="Toggle country list">
+                      <i class="fas fa-chevron-down"></i>
+                    </button>
+                  </div>
+                  <input id="cg-currency-code" type="hidden" value="">
+                  <div id="cg-country-menu" class="dropdown-shell__menu" role="listbox"></div>
+                </div>
+              </div>
+
+              <div class="field-stack field-stack--full">
+                <label class="label-mono checkout-field-label" for="cg-session-input"><i class="fas fa-key"></i><span>Auth Session</span></label>
+                <textarea id="cg-session-input" class="control-textarea" rows="6" placeholder="Paste full session JSON or only accessToken..."></textarea>
+              </div>
+            </div>
+
+            <div class="info-strip">
+              <span class="label-mono">Input</span>
+              <p>Open `chatgpt.com/api/auth/session` while logged in, then paste the full JSON or its `accessToken` here.</p>
+            </div>
+
+            <button id="cg-generate-btn" class="primary-action" type="button">
+              <i class="fas fa-wand-magic-sparkles"></i>
+              <span>Tạo link checkout 0đ</span>
+            </button>
+
+            <div id="cg-loading-state" class="loading-strip is-hidden" aria-live="polite">
+              <span class="loading-strip__spinner"></span>
+              <span>Đang tạo link checkout...</span>
+            </div>
+
+            <section id="cg-success-box" class="status-card status-card--success is-hidden" aria-live="polite">
+              <div class="status-card__head">
+                <p class="label-mono">Success</p>
+                <h4>Checkout link created</h4>
+              </div>
+              <label class="label-mono" for="cg-result-url">Payment Link</label>
+              <input id="cg-result-url" class="control-input" type="text" readonly>
+              <div class="status-card__actions">
+                <button id="cg-copy-btn" type="button" class="secondary-action">
+                  <i class="fa-regular fa-copy"></i>
+                  <span>Copy Link</span>
+                </button>
+                <button id="cg-open-btn" type="button" class="secondary-action">
+                  <i class="fas fa-arrow-up-right-from-square"></i>
+                  <span>Open Link</span>
+                </button>
+              </div>
+            </section>
+
+            <section id="cg-error-box" class="status-card status-card--error is-hidden" aria-live="assertive">
+              <div class="status-card__head">
+                <p class="label-mono">Error</p>
+                <h4>Something went wrong</h4>
+              </div>
+              <p id="cg-error-msg" class="status-card__copy"></p>
+            </section>
+          </section>
+        </div>
+      </section>
+
+      <section class="community-view is-hidden" data-community-panel="team-manager">
+        <div id="team-manager-module" class="module-stack">
+          <div class="module-toolbar">
+            <div class="app-nav app-nav--subtle">
+              <button id="tm-tab-dashboard" class="app-nav__button is-active" type="button">Dashboard</button>
+              <button id="tm-tab-manage" class="app-nav__button" type="button">Quản lý</button>
+            </div>
+            <button id="tm-open-add-modal" class="primary-action primary-action--compact" type="button">
+              <i class="fas fa-plus"></i>
+              <span>Thêm team mới</span>
+            </button>
+          </div>
+
+          <div id="tm-banner" class="status-banner is-hidden"></div>
+
+          <section id="tm-dashboard-panel" class="module-stack">
+            <div id="tm-dashboard-grid" class="tm-dashboard-grid"></div>
+          </section>
+
+          <section id="tm-manage-panel" class="module-stack is-hidden">
+            <section class="surface-card tm-stream-panel">
+              <div class="tm-stream-panel__head">
+                <div>
+                  <p class="label-mono">Team Stream</p>
+                  <h3>Danh sách team</h3>
+                </div>
+                <span id="tm-team-count-badge" class="sharp-badge">0 team</span>
+              </div>
+              <div id="tm-team-list" class="tm-team-list"></div>
+            </section>
+
+            <section id="tm-empty-state" class="soft-card empty-state">
+              <p class="label-mono">No Selection</p>
+              <h3>Chọn team để bắt đầu</h3>
+              <p>Chọn một team trong danh sách để xem member, mời thêm người và cấu hình auto-kick.</p>
+            </section>
+
+            <section id="tm-team-panel" class="module-stack is-hidden">
+              <div class="tm-detail-grid">
+                <section class="surface-card tm-team-card">
+                  <div class="tm-team-card__head">
+                    <div>
+                      <div class="tm-team-card__title-row">
+                        <h3 id="tm-team-name"></h3>
+                        <span id="tm-team-status-badge" class="status-pill"></span>
+                      </div>
+                      <p id="tm-team-email" class="tm-team-card__email"></p>
+                    </div>
+                    <div class="tm-action-group">
+                      <button id="tm-refresh-button" class="secondary-action secondary-action--compact" type="button">
+                        <i class="fas fa-rotate-right"></i>
+                        <span>Làm mới</span>
+                      </button>
+                      <button id="tm-invite-button" class="secondary-action secondary-action--compact secondary-action--mint" type="button">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>Mời thành viên</span>
+                      </button>
+                      <button id="tm-delete-team-button" class="secondary-action secondary-action--compact secondary-action--danger" type="button">
+                        <i class="fas fa-trash"></i>
+                        <span>Xóa team</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="tm-meta-strip">
+                    <div class="tm-meta-item">
+                      <p class="label-mono">Account ID</p>
+                      <p id="tm-team-account-id"></p>
+                    </div>
+                    <div class="tm-meta-item">
+                      <p class="label-mono">Members</p>
+                      <p id="tm-team-members-count">0</p>
+                    </div>
+                    <div class="tm-meta-item">
+                      <p class="label-mono">Sync Time</p>
+                      <p id="tm-team-last-sync">Chưa có</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="surface-card tm-settings-card">
+                  <div class="tm-settings-card__head">
+                    <div>
+                      <p class="label-mono">Auto-Kick</p>
+                    </div>
+                    <label class="switch">
+                      <input id="tm-auto-kick-toggle" type="checkbox">
+                      <span class="switch__track"></span>
+                    </label>
+                  </div>
+
+                  <div class="field-stack">
+                    <label class="label-mono" for="tm-max-members-input">Max Members</label>
+                    <input id="tm-max-members-input" class="control-input control-input--tight" type="number" min="0" placeholder="0 = không giới hạn">
+                  </div>
+                  <div id="tm-auto-kick-summary" class="tm-auto-kick-summary"></div>
+                </section>
+              </div>
+
+              <section class="surface-card tm-members-panel">
+                <div class="tm-members-panel__head">
+                  <div>
+                    <p class="label-mono">Members</p>
+                    <h4>Danh sách thành viên</h4>
+                  </div>
+                  <span id="tm-members-meta" class="sharp-badge">0 thành viên</span>
+                </div>
+                <div id="tm-members-area" class="tm-members-area"></div>
+              </section>
+            </section>
+          </section>
+
+          <div id="tm-add-modal" class="modal is-hidden">
+            <div class="modal__backdrop" data-modal-close="tm-add-modal"></div>
+            <div class="surface-card modal__dialog modal__dialog--wide">
+              <div class="modal__head">
+                <div>
+                  <p class="label-mono">Thêm team</p>
+                  <h3>Nhập session JSON</h3>
+                </div>
+                <button class="modal__close" type="button" data-modal-close="tm-add-modal">
+                  <i class="fas fa-xmark"></i>
+                </button>
+              </div>
+
+              <div class="modal__grid">
+                <textarea id="tm-session-json" class="control-textarea" rows="14" placeholder='{"accessToken":"...","account":{"id":"..."}, "user":{"email":"..."}}'></textarea>
+                <div class="modal__side">
+                  <div class="field-stack">
+                    <label class="label-mono" for="tm-new-team-name">Tên team hiển thị</label>
+                    <input id="tm-new-team-name" class="control-input" type="text" placeholder="Tùy chọn">
+                  </div>
+                  <div class="field-stack">
+                    <label class="label-mono" for="tm-new-team-max-members">Giới hạn member</label>
+                    <input id="tm-new-team-max-members" class="control-input" type="number" min="0" value="0">
+                  </div>
+                  <label class="checkbox-row">
+                    <input id="tm-new-team-auto-kick" type="checkbox">
+                    <span>Bật auto-kick khi vượt giới hạn</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="modal__actions">
+                <button class="secondary-action" type="button" data-modal-close="tm-add-modal">Hủy</button>
+                <button id="tm-add-team-button" class="primary-action primary-action--compact" type="button">Thêm team</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="tm-invite-modal" class="modal is-hidden">
+            <div class="modal__backdrop" data-modal-close="tm-invite-modal"></div>
+            <div class="surface-card modal__dialog">
+              <div class="modal__head">
+                <div>
+                  <p class="label-mono">Invite</p>
+                  <h3>Mời thành viên mới</h3>
+                </div>
+                <button class="modal__close" type="button" data-modal-close="tm-invite-modal">
+                  <i class="fas fa-xmark"></i>
+                </button>
+              </div>
+              <div class="field-stack">
+                <label class="label-mono" for="tm-invite-email">Email thành viên</label>
+                <input id="tm-invite-email" class="control-input" type="email" placeholder="member@example.com">
+              </div>
+              <div class="modal__actions">
+                <button class="secondary-action" type="button" data-modal-close="tm-invite-modal">Hủy</button>
+                <button id="tm-send-invite-button" class="primary-action primary-action--compact" type="button">Gửi lời mời</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="auth-login-modal" class="modal is-hidden">
+    <div class="modal__backdrop" data-auth-close></div>
+    <div class="surface-card modal__dialog">
+      <div class="modal__head">
+        <div>
+          <p class="label-mono">Security Gate</p>
+          <h3 id="auth-modal-title">Đăng nhập bằng Telegram</h3>
+          <p id="auth-modal-subtitle" class="modal__hint is-hidden"></p>
+        </div>
+        <button class="modal__close" type="button" data-auth-close>
+          <i class="fas fa-xmark"></i>
+        </button>
+      </div>
+
+      <div id="auth-status-banner" class="status-banner status-banner--info is-hidden"></div>
+
+      <div id="auth-logged-out-view" class="auth-panel">
+        <div class="field-stack">
+          <label class="label-mono" for="auth-telegram-identifier">Telegram ID hoặc username</label>
+          <input id="auth-telegram-identifier" class="control-input" type="text" placeholder="@username hoặc 123456789">
+        </div>
+
+        <div class="modal__actions modal__actions--spread">
+          <a
+            id="auth-open-bot-button"
+            class="secondary-action"
+            href="#"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            <i class="fa-brands fa-telegram"></i>
+            <span>Mở bot Telegram</span>
+          </a>
+          <button id="auth-request-code-button" class="secondary-action" type="button">
+            <i class="fas fa-paper-plane"></i>
+            <span>Gửi mã đăng nhập</span>
+          </button>
+        </div>
+
+        <div class="field-stack">
+          <label class="label-mono" for="auth-telegram-code">Mã đăng nhập</label>
+          <input id="auth-telegram-code" class="control-input" type="text" inputmode="numeric" maxlength="6" placeholder="Nhập mã 6 số">
+        </div>
+
+        <div class="modal__actions">
+          <button id="auth-verify-button" class="primary-action" type="button">
+            <i class="fas fa-shield-halved"></i>
+            <span>Xác thực</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="auth-logged-in-view" class="auth-panel is-hidden">
+        <div class="auth-session-card">
+          <p class="label-mono">Current Session</p>
+          <h4 id="auth-session-name"></h4>
+          <p id="auth-session-meta" class="modal__hint"></p>
+          <p id="auth-session-expiry" class="modal__hint"></p>
+        </div>
+
+        <div class="modal__actions">
+          <button id="auth-logout-button" class="secondary-action secondary-action--danger" type="button">
+            <i class="fas fa-right-from-bracket"></i>
+            <span>Đăng xuất</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
