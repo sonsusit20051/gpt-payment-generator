@@ -1183,15 +1183,26 @@ button {
   }
 
   .app-header__bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "identity auth"
+      "nav nav";
+    align-items: start;
     gap: 12px;
     padding: 12px;
     border-radius: 20px;
   }
 
   .app-header__identity {
+    grid-area: identity;
     width: 100%;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .app-header__actions {
+    display: contents;
   }
 
   .app-logo {
@@ -1210,11 +1221,8 @@ button {
     line-height: 1.5;
   }
 
-  .app-header__actions {
-    gap: 10px;
-  }
-
   .app-auth {
+    grid-area: auth;
     display: grid;
     grid-template-columns: 50px 50px;
     gap: 10px;
@@ -1237,7 +1245,8 @@ button {
     align-items: stretch;
   }
 
-  .app-nav {
+  .app-header .app-nav {
+    grid-area: nav;
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
@@ -1250,7 +1259,7 @@ button {
     border-radius: 20px;
   }
 
-  .app-nav::-webkit-scrollbar {
+  .app-header .app-nav::-webkit-scrollbar {
     display: none;
   }
 
