@@ -10,6 +10,7 @@ const app = express();
 const PORT = Number.parseInt(process.env.PORT, 10) || 3000;
 const BASE_URL = 'https://chatgpt.com/backend-api';
 const WEB_ROOT = __dirname;
+const STATE_FILE_PATH = path.join(WEB_ROOT, 'data', 'bot-state.json');
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const BOT_USERNAME_FROM_ENV = (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '');
 const ADMIN_CHAT_ID = String(process.env.TELEGRAM_ADMIN_CHAT_ID || '').trim();
@@ -33,6 +34,9 @@ const botRuntime = {
   lastError: '',
   lastConflictAt: null
 };
+const runtimeState = loadRuntimeState();
+
+hydrateKnownUsersFromState();
 
 app.use(cors());
 app.use(express.json());
@@ -40,6 +44,7 @@ app.use('/css', express.static(path.join(WEB_ROOT, 'css')));
 app.use('/js', express.static(path.join(WEB_ROOT, 'js')));
 
 app.get('/', (_req, res) => {
+  recordWebVisit();
   res.sendFile(path.join(WEB_ROOT, 'index.html'));
 });
 
@@ -87,6 +92,11 @@ app.post('/auth/telegram/request-code', async (req, res) => {
   console.log(`🔐 Login code requested for: ${identifier || '(empty)'}`);
   if (!identifier) {
     res.status(400).json({ error: 'Thiếu Telegram ID hoặc username.' });
+    return;
+  }
+
+  if (isBannedIdentifier(identifier)) {
+    res.status(403).json({ error: 'Tài khoản này đã bị chặn đăng nhập.' });
     return;
   }
 
@@ -151,6 +161,11 @@ app.post('/auth/telegram/verify-code', async (req, res) => {
     return;
   }
 
+  if (isBannedTelegramUser(telegramUser)) {
+    res.status(403).json({ error: 'Tài khoản này đã bị chặn đăng nhập.' });
+    return;
+  }
+
   const record = pendingLoginCodes.get(telegramUser.telegramId);
   if (!record) {
     res.status(400).json({ error: 'Chưa có mã đăng nhập nào được tạo cho tài khoản này.' });
@@ -182,6 +197,7 @@ app.post('/auth/telegram/verify-code', async (req, res) => {
   };
 
   authSessions.set(authToken, session);
+  recordSuccessfulLogin(session, clientStats);
 
   try {
     await sendTelegramMessage(
@@ -345,6 +361,7 @@ function upsertTelegramUser(message) {
   if (username) {
     knownTelegramUsersByUsername.set(username, user);
   }
+  persistKnownUser(user);
 
   return user;
 }
@@ -456,6 +473,340 @@ function buildAdminSessionPayload(rawSession) {
     : serialized;
 
   return `Session JSON:\n${safePayload}`;
+}
+
+function recordWebVisit() {
+  runtimeState.metrics.webVisits += 1;
+  persistRuntimeState();
+}
+
+function recordSuccessfulLogin(session, clientStats) {
+  runtimeState.metrics.successfulLogins += 1;
+  runtimeState.userStatsById[session.telegramId] = {
+    telegramId: session.telegramId,
+    username: session.username || '',
+    displayName: session.displayName || '',
+    teamCount: clientStats.teamCount,
+    memberCount: clientStats.memberCount,
+    convertedLinkCount: clientStats.convertedLinkCount,
+    lastLoginAt: new Date().toISOString()
+  };
+  persistRuntimeState();
+}
+
+function isBannedIdentifier(identifier) {
+  const normalized = normalizeIdentifier(identifier);
+  if (!normalized) return false;
+  if (/^\d+$/.test(normalized)) {
+    return runtimeState.banned.telegramIds.includes(normalized);
+  }
+  return runtimeState.banned.usernames.includes(normalized);
+}
+
+function isBannedTelegramUser(user) {
+  if (!user) return false;
+  return (
+    runtimeState.banned.telegramIds.includes(String(user.telegramId || '')) ||
+    (user.username ? runtimeState.banned.usernames.includes(normalizeIdentifier(user.username)) : false)
+  );
+}
+
+function parseTelegramCommand(text) {
+  const value = String(text || '').trim();
+  if (!value.startsWith('/')) return null;
+
+  const [rawCommand] = value.split(/\s+/, 1);
+  return {
+    command: normalizeCommandName(rawCommand),
+    rawArgs: value.slice(rawCommand.length).trim()
+  };
+}
+
+function normalizeCommandName(rawCommand) {
+  const command = String(rawCommand || '').trim().toLowerCase();
+  if (!command) return '';
+  if (!botProfile.botUsername) return command;
+  return command.replace(new RegExp(`@${botProfile.botUsername}$`, 'i'), '');
+}
+
+async function handleAdminCommand(user, command) {
+  const adminCommands = new Set(['/menu', '/ban', '/unban', '/notify', '/bans']);
+  if (!adminCommands.has(command.command)) return false;
+
+  if (!isAdminUser(user)) {
+    await sendTelegramMessage(user.chatId, 'Bạn không có quyền dùng lệnh admin này.');
+    return true;
+  }
+
+  if (command.command === '/menu') {
+    await sendTelegramMessage(user.chatId, buildAdminMenuMessage(), { parse_mode: 'HTML' });
+    return true;
+  }
+
+  if (command.command === '/ban') {
+    await sendTelegramMessage(user.chatId, banIdentity(command.rawArgs));
+    return true;
+  }
+
+  if (command.command === '/unban') {
+    await sendTelegramMessage(user.chatId, unbanIdentity(command.rawArgs));
+    return true;
+  }
+
+  if (command.command === '/bans') {
+    await sendTelegramMessage(user.chatId, buildBanListMessage(), { parse_mode: 'HTML' });
+    return true;
+  }
+
+  if (command.command === '/notify') {
+    await sendTelegramMessage(user.chatId, await notifyUsersFromAdminCommand(command.rawArgs));
+    return true;
+  }
+
+  return false;
+}
+
+function isAdminUser(user) {
+  if (!ADMIN_CHAT_ID || !user) return false;
+  return String(user.chatId) === ADMIN_CHAT_ID || String(user.telegramId) === ADMIN_CHAT_ID;
+}
+
+function buildAdminMenuMessage() {
+  const stats = getOverviewStats();
+  return [
+    '<b>Tong quan admin</b>',
+    `Luot truy cap web: <b>${stats.webVisits}</b>`,
+    `Dang nhap thanh cong: <b>${stats.successfulLogins}</b>`,
+    `Tong so team: <b>${stats.totalTeams}</b>`,
+    `Tong so thanh vien: <b>${stats.totalMembers}</b>`,
+    `Tong so link da chuyen doi: <b>${stats.totalConvertedLinks}</b>`,
+    `So user da ghi nhan: <b>${stats.totalUsers}</b>`,
+    '',
+    '<b>Lenh admin</b>',
+    '<code>/menu</code>',
+    '<code>/ban &lt;id|@username&gt;</code>',
+    '<code>/unban &lt;id|@username&gt;</code>',
+    '<code>/bans</code>',
+    '<code>/notify all &lt;noi dung&gt;</code>',
+    '<code>/notify &lt;id|@username&gt; &lt;noi dung&gt;</code>'
+  ].join('\n');
+}
+
+function getOverviewStats() {
+  const stats = Object.values(runtimeState.userStatsById || {});
+  return {
+    webVisits: normalizeCount(runtimeState.metrics.webVisits),
+    successfulLogins: normalizeCount(runtimeState.metrics.successfulLogins),
+    totalTeams: stats.reduce((sum, item) => sum + normalizeCount(item.teamCount), 0),
+    totalMembers: stats.reduce((sum, item) => sum + normalizeCount(item.memberCount), 0),
+    totalConvertedLinks: stats.reduce((sum, item) => sum + normalizeCount(item.convertedLinkCount), 0),
+    totalUsers: stats.length
+  };
+}
+
+function banIdentity(rawValue) {
+  const identity = String(rawValue || '').trim();
+  if (!identity) return 'Cú pháp: /ban <id|@username>';
+
+  const normalized = normalizeIdentifier(identity);
+  const user = findTelegramUser(identity);
+  const ids = new Set();
+  const usernames = new Set();
+
+  if (user) {
+    ids.add(String(user.telegramId));
+    if (user.username) usernames.add(normalizeIdentifier(user.username));
+  } else if (/^\d+$/.test(normalized)) {
+    ids.add(normalized);
+  } else if (normalized) {
+    usernames.add(normalized);
+  }
+
+  ids.forEach((value) => {
+    if (!runtimeState.banned.telegramIds.includes(value)) {
+      runtimeState.banned.telegramIds.push(value);
+    }
+  });
+  usernames.forEach((value) => {
+    if (!runtimeState.banned.usernames.includes(value)) {
+      runtimeState.banned.usernames.push(value);
+    }
+  });
+
+  persistRuntimeState();
+  return `Đã chặn đăng nhập: ${identity}`;
+}
+
+function unbanIdentity(rawValue) {
+  const identity = String(rawValue || '').trim();
+  if (!identity) return 'Cú pháp: /unban <id|@username>';
+
+  const normalized = normalizeIdentifier(identity);
+  const user = findTelegramUser(identity);
+  const ids = new Set();
+  const usernames = new Set();
+
+  if (user) {
+    ids.add(String(user.telegramId));
+    if (user.username) usernames.add(normalizeIdentifier(user.username));
+  } else if (/^\d+$/.test(normalized)) {
+    ids.add(normalized);
+  } else if (normalized) {
+    usernames.add(normalized);
+  }
+
+  runtimeState.banned.telegramIds = runtimeState.banned.telegramIds.filter((value) => !ids.has(value));
+  runtimeState.banned.usernames = runtimeState.banned.usernames.filter((value) => !usernames.has(value));
+  persistRuntimeState();
+  return `Đã bỏ chặn: ${identity}`;
+}
+
+function buildBanListMessage() {
+  const idList = runtimeState.banned.telegramIds.length
+    ? runtimeState.banned.telegramIds.map((value) => `<code>${escapeTelegramHtml(value)}</code>`).join(', ')
+    : 'Chưa có';
+  const usernameList = runtimeState.banned.usernames.length
+    ? runtimeState.banned.usernames.map((value) => `<code>@${escapeTelegramHtml(value)}</code>`).join(', ')
+    : 'Chưa có';
+
+  return [
+    '<b>Danh sach chan dang nhap</b>',
+    `ID: ${idList}`,
+    `Username: ${usernameList}`
+  ].join('\n');
+}
+
+async function notifyUsersFromAdminCommand(rawValue) {
+  const value = String(rawValue || '').trim();
+  if (!value) return 'Cú pháp: /notify <all|id|@username> <nội dung>';
+
+  const firstSpaceIndex = value.indexOf(' ');
+  if (firstSpaceIndex === -1) {
+    return 'Cú pháp: /notify <all|id|@username> <nội dung>';
+  }
+
+  const target = value.slice(0, firstSpaceIndex).trim();
+  const message = value.slice(firstSpaceIndex + 1).trim();
+  if (!message) return 'Thiếu nội dung thông báo.';
+
+  if (target.toLowerCase() === 'all') {
+    const users = Array.from(knownTelegramUsersById.values())
+      .filter((user) => user && String(user.chatId) !== ADMIN_CHAT_ID)
+      .filter((user, index, items) => items.findIndex((item) => item.telegramId === user.telegramId) === index);
+
+    if (!users.length) return 'Chưa có user nào để gửi thông báo.';
+
+    let sentCount = 0;
+    for (const user of users) {
+      try {
+        await sendTelegramMessage(user.chatId, `📢 Thông báo từ admin:\n${message}`);
+        sentCount += 1;
+      } catch (error) {
+        console.warn(`Broadcast failed to ${formatTelegramHandle(user)}: ${error.message}`);
+      }
+    }
+
+    return `Đã gửi thông báo tới ${sentCount}/${users.length} user.`;
+  }
+
+  const user = findTelegramUser(target);
+  if (!user) return 'Không tìm thấy user đã từng chat với bot.';
+
+  await sendTelegramMessage(user.chatId, `📢 Thông báo từ admin:\n${message}`);
+  return `Đã gửi thông báo tới ${formatTelegramHandle(user)}.`;
+}
+
+function hydrateKnownUsersFromState() {
+  for (const rawUser of runtimeState.knownUsers) {
+    const user = normalizeStoredUser(rawUser);
+    if (!user) continue;
+    knownTelegramUsersById.set(user.telegramId, user);
+    knownTelegramUsersById.set(user.chatId, user);
+    if (user.username) {
+      knownTelegramUsersByUsername.set(user.username, user);
+    }
+  }
+}
+
+function persistKnownUser(user) {
+  const normalizedUser = normalizeStoredUser(user);
+  if (!normalizedUser) return;
+
+  const existingIndex = runtimeState.knownUsers.findIndex(
+    (item) => item.telegramId === normalizedUser.telegramId
+  );
+
+  if (existingIndex === -1) {
+    runtimeState.knownUsers.push(normalizedUser);
+  } else {
+    runtimeState.knownUsers[existingIndex] = normalizedUser;
+  }
+
+  persistRuntimeState();
+}
+
+function normalizeStoredUser(user) {
+  const telegramId = String(user?.telegramId || '').trim();
+  const chatId = String(user?.chatId || '').trim();
+  if (!telegramId || !chatId) return null;
+
+  return {
+    telegramId,
+    chatId,
+    username: normalizeIdentifier(user?.username || ''),
+    displayName: String(user?.displayName || '').trim() || `ID ${telegramId}`,
+    lastSeenAt: String(user?.lastSeenAt || new Date().toISOString())
+  };
+}
+
+function loadRuntimeState() {
+  const fallback = createDefaultRuntimeState();
+  if (!fs.existsSync(STATE_FILE_PATH)) {
+    return fallback;
+  }
+
+  try {
+    const raw = JSON.parse(fs.readFileSync(STATE_FILE_PATH, 'utf8'));
+    return {
+      metrics: {
+        webVisits: normalizeCount(raw?.metrics?.webVisits),
+        successfulLogins: normalizeCount(raw?.metrics?.successfulLogins)
+      },
+      banned: {
+        telegramIds: Array.isArray(raw?.banned?.telegramIds)
+          ? raw.banned.telegramIds.map((value) => String(value).trim()).filter(Boolean)
+          : [],
+        usernames: Array.isArray(raw?.banned?.usernames)
+          ? raw.banned.usernames.map((value) => normalizeIdentifier(value)).filter(Boolean)
+          : []
+      },
+      knownUsers: Array.isArray(raw?.knownUsers) ? raw.knownUsers : [],
+      userStatsById: raw?.userStatsById && typeof raw.userStatsById === 'object' ? raw.userStatsById : {}
+    };
+  } catch (error) {
+    console.warn(`Failed to load runtime state: ${error.message}`);
+    return fallback;
+  }
+}
+
+function createDefaultRuntimeState() {
+  return {
+    metrics: {
+      webVisits: 0,
+      successfulLogins: 0
+    },
+    banned: {
+      telegramIds: [],
+      usernames: []
+    },
+    knownUsers: [],
+    userStatsById: {}
+  };
+}
+
+function persistRuntimeState() {
+  fs.mkdirSync(path.dirname(STATE_FILE_PATH), { recursive: true });
+  fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(runtimeState, null, 2));
 }
 
 function validateAuthToken(tokenValue) {
@@ -604,6 +955,12 @@ async function handleTelegramUpdate(update) {
   const text = String(message.text || '').trim();
   if (!text) return;
 
+  const command = parseTelegramCommand(text);
+  if (command) {
+    const handled = await handleAdminCommand(user, command);
+    if (handled) return;
+  }
+
   if (text === '/get') {
     const messageLines = [
       'Telegram ID của bạn:',
@@ -623,13 +980,19 @@ async function handleTelegramUpdate(update) {
   }
 
   if (text === '/start' || text === '/login') {
+    const lines = [
+      `Chào mừng ${escapeTelegramHtml(formatTelegramGreeting(user))} đến với M MOI COMMUNITY`,
+      'Hãy nhấn /get để lấy Telegram ID',
+      'Sau đó quay lại trang web để đăng nhập'
+    ];
+
+    if (isAdminUser(user)) {
+      lines.push('', 'Lệnh admin:', '/menu', '/ban <id|@username>', '/unban <id|@username>', '/notify <all|id|@username> <nội dung>');
+    }
+
     await sendTelegramMessage(
       user.chatId,
-      [
-        `Chào mừng ${escapeTelegramHtml(formatTelegramGreeting(user))} đến với M MOI COMMUNITY`,
-        'Hãy nhấn /get để lấy Telegram ID',
-        'Sau đó quay lại trang web để đăng nhập'
-      ].join('\n'),
+      lines.join('\n'),
       {
         parse_mode: 'HTML'
       }
