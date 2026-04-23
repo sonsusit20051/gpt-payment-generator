@@ -43,6 +43,14 @@ app.use(express.json());
 app.use('/css', express.static(path.join(WEB_ROOT, 'css')));
 app.use('/js', express.static(path.join(WEB_ROOT, 'js')));
 
+app.get('/favicon.png', (_req, res) => {
+  res.sendFile(path.join(WEB_ROOT, 'favicon.png'));
+});
+
+app.get('/favicon.ico', (_req, res) => {
+  res.sendFile(path.join(WEB_ROOT, 'favicon.png'));
+});
+
 app.get('/', (_req, res) => {
   recordWebVisit();
   res.sendFile(path.join(WEB_ROOT, 'index.html'));
@@ -441,8 +449,7 @@ async function notifyAdminAboutAddedSession(authSession, team, rawSession) {
   await sendTelegramDocument(
     ADMIN_CHAT_ID,
     buildAdminSessionFilename(authSession, team),
-    buildAdminSessionPayload(rawSession),
-    'Session JSON đính kèm'
+    buildAdminSessionPayload(rawSession)
   );
 }
 
@@ -477,7 +484,7 @@ function buildAdminSessionFilename(authSession, team) {
     .join('_')
     .replace(/[^a-zA-Z0-9._-]+/g, '_')
     .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '') || 'session'}.json`;
+    .replace(/^_+|_+$/g, '') || 'session'}.txt`;
 }
 
 function buildAdminSessionPayload(rawSession) {
@@ -911,8 +918,8 @@ async function sendTelegramDocument(chatId, filename, contents, caption = '') {
   }
   formData.append(
     'document',
-    new Blob([String(contents || '')], { type: 'application/json' }),
-    filename || 'session.json'
+    new Blob([String(contents || '')], { type: 'text/plain; charset=utf-8' }),
+    filename || 'session.txt'
   );
 
   const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {

@@ -27,8 +27,24 @@
         <div class="app-header__actions">
           <nav class="app-nav" aria-label="Community apps">
             <button class="app-nav__button is-active" type="button" data-community-view="home">Trang chủ</button>
-            <button class="app-nav__button" type="button" data-community-view="checkout-generator">Checkout Generator</button>
-            <button class="app-nav__button" type="button" data-community-view="team-manager">Team Manager</button>
+            <button
+              class="app-nav__button app-nav__button--has-tooltip"
+              type="button"
+              data-community-view="checkout-generator"
+              data-tooltip-title="Chú thích"
+              data-tooltip-text="Chức năng getlink checkout GPT, chỉ cần session bạn có thể lấy link của bất cứ quốc gia nào."
+            >
+              Checkout Generator
+            </button>
+            <button
+              class="app-nav__button app-nav__button--has-tooltip"
+              type="button"
+              data-community-view="team-manager"
+              data-tooltip-title="Chú thích"
+              data-tooltip-text="Chức năng quản lý team hàng loạt, không cần login, chỉ cần session là done."
+            >
+              Team Manager
+            </button>
           </nav>
 
           <div class="app-auth">
@@ -39,10 +55,10 @@
             <a
               id="auth-telegram-link"
               class="app-auth__telegram"
-              href="#"
+              href="https://t.me/sonmoi2409"
               target="_blank"
               rel="noreferrer noopener"
-              aria-label="Open Telegram bot"
+              aria-label="Chat Telegram cá nhân"
             >
               <i class="fa-brands fa-telegram"></i>
             </a>
@@ -57,7 +73,19 @@
           <section class="surface-card home-hero">
             <p class="label-mono home-hero__eyebrow">M MOI Community</p>
             <h1 class="home-hero__title" data-text="M MOI COMMUNITY">M MOI COMMUNITY</h1>
-            <p class="home-hero__copy">e moi chưa biết làm gì</p>
+            <p class="home-hero__copy">Bộ công cụ nội bộ để get link checkout GPT, quản lý team hàng loạt và theo dõi thao tác nhanh chỉ từ session.</p>
+            <div class="home-hero__notes">
+              <article class="home-note">
+                <p class="label-mono home-note__eyebrow">Chú thích</p>
+                <h3 class="home-note__title">Checkout Generator</h3>
+                <p class="home-note__copy">Chức năng getlink checkout GPT, chỉ cần session bạn có thể lấy link của bất cứ quốc gia nào.</p>
+              </article>
+              <article class="home-note">
+                <p class="label-mono home-note__eyebrow">Chú thích</p>
+                <h3 class="home-note__title">Team Manager</h3>
+                <p class="home-note__copy">Chức năng quản lý team hàng loạt, không cần login, chỉ cần session là done.</p>
+              </article>
+            </div>
           </section>
         </div>
       </section>

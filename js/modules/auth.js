@@ -176,7 +176,7 @@ export function mountTelegramAuth() {
 
   function syncBotLinks() {
     const hasLink = Boolean(state.botMeta.botLink);
-    const linkTargets = [els.telegramLink, els.openBotButton];
+    const linkTargets = [els.openBotButton];
 
     linkTargets.forEach((link) => {
       if (!link) return;
