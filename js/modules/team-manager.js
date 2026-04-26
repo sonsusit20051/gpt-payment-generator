@@ -1,12 +1,17 @@
 const PROXY = window.location.protocol === "file:" ? "http://localhost:3000" : "";
 const MAX_LIST_LIMIT = 100;
 const AUTO_REFRESH_INTERVAL_MS = 60000;
+const TEAM_STORAGE_KEY = "teams";
+const TEAM_OWNER_STORAGE_KEY = "teamsOwner";
+const USER_DATA_SAVE_DEBOUNCE_MS = 500;
 
 export function mountTeamManager(root, auth = null) {
   if (!root) return null;
 
   const els = cacheElements(root);
   let teams = loadTeams();
+  let activeUserKey = "";
+  let userDataSaveTimer = null;
   let currentTeamIndex = -1;
   let currentView = "dashboard";
   let activityTimer = null;
@@ -18,8 +23,12 @@ export function mountTeamManager(root, auth = null) {
   renderCurrentView();
   renderSelectionState();
 
-  if (teams.length && auth?.isLoggedIn?.()) {
-    refreshDashboard({ silent: true });
+  if (auth?.isLoggedIn?.()) {
+    loadUserDataFromServer(auth.getSession?.()).then(() => {
+      if (teams.length) {
+        refreshDashboard({ silent: true });
+      }
+    });
   }
 
   window.setInterval(() => {
@@ -104,8 +113,12 @@ export function mountTeamManager(root, auth = null) {
   }
 
   function loadTeams() {
-    const raw = JSON.parse(localStorage.getItem("teams") || "[]");
-    return raw.map(normalizeTeam);
+    try {
+      const raw = JSON.parse(localStorage.getItem(TEAM_STORAGE_KEY) || "[]");
+      return Array.isArray(raw) ? raw.map(normalizeTeam) : [];
+    } catch {
+      return [];
+    }
   }
 
   function normalizeTeam(team = {}) {
@@ -127,7 +140,127 @@ export function mountTeamManager(root, auth = null) {
   }
 
   function saveTeams() {
-    localStorage.setItem("teams", JSON.stringify(teams.map(normalizeTeam)));
+    saveTeamsLocal();
+    scheduleUserDataSave();
+  }
+
+  function saveTeamsLocal() {
+    localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(teams.map(normalizeTeam)));
+    if (activeUserKey) {
+      localStorage.setItem(TEAM_OWNER_STORAGE_KEY, activeUserKey);
+    }
+  }
+
+  function getStoredTeamsOwner() {
+    return String(localStorage.getItem(TEAM_OWNER_STORAGE_KEY) || "").trim();
+  }
+
+  function renderAll() {
+    renderDashboard();
+    renderTeamList();
+    renderSelectedTeam();
+  }
+
+  function scheduleUserDataSave() {
+    if (!activeUserKey || !auth?.isLoggedIn?.()) return;
+    if (userDataSaveTimer) {
+      clearTimeout(userDataSaveTimer);
+    }
+    userDataSaveTimer = window.setTimeout(() => {
+      userDataSaveTimer = null;
+      saveUserDataToServer().catch(() => {
+        notify("Chưa lưu được dữ liệu lên server. Dữ liệu vẫn còn trên trình duyệt này.", "warning");
+      });
+    }, USER_DATA_SAVE_DEBOUNCE_MS);
+  }
+
+  async function saveUserDataToServer() {
+    const authToken = auth?.getAuthToken?.();
+    if (!authToken) return;
+
+    const response = await fetch(`${PROXY}/auth/telegram/user-data`, {
+      method: "PUT",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Community-Auth": authToken
+      },
+      body: JSON.stringify({
+        data: {
+          teams: teams.map(normalizeTeam)
+        }
+      })
+    });
+
+    if (response.status === 401) {
+      auth?.handleUnauthorized?.("Phiên Telegram đã hết hạn. Vui lòng đăng nhập lại để lưu dữ liệu team.");
+      throw new Error("Phiên đăng nhập đã hết hạn.");
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `HTTP ${response.status}`);
+    }
+  }
+
+  async function loadUserDataFromServer(session) {
+    const authToken = auth?.getAuthToken?.();
+    const userKey = getSessionUserKey(session);
+    if (!authToken || !userKey) return;
+
+    activeUserKey = userKey;
+    const localOwner = getStoredTeamsOwner();
+    const localTeams = teams.map(normalizeTeam);
+
+    const response = await fetch(`${PROXY}/auth/telegram/user-data`, {
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Community-Auth": authToken
+      }
+    });
+
+    if (response.status === 401) {
+      auth?.handleUnauthorized?.("Phiên Telegram đã hết hạn. Vui lòng đăng nhập lại để tải dữ liệu team.");
+      return;
+    }
+
+    if (!response.ok) {
+      notify("Không tải được dữ liệu team từ server. Đang dùng dữ liệu local nếu có.", "warning");
+      return;
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    const serverTeams = Array.isArray(payload?.data?.teams)
+      ? payload.data.teams.map(normalizeTeam)
+      : [];
+
+    if (serverTeams.length) {
+      teams = serverTeams;
+      if (currentTeamIndex >= teams.length) {
+        currentTeamIndex = teams.length ? teams.length - 1 : -1;
+      }
+      saveTeamsLocal();
+      renderAll();
+      return;
+    }
+
+    if (localTeams.length && (!localOwner || localOwner === userKey)) {
+      saveTeamsLocal();
+      await saveUserDataToServer();
+      return;
+    }
+
+    if (localOwner && localOwner !== userKey) {
+      teams = [];
+      currentTeamIndex = -1;
+      saveTeamsLocal();
+      renderAll();
+    }
+  }
+
+  function getSessionUserKey(session) {
+    return String(session?.telegramId || "").trim();
   }
 
   function getCurrentTeam() {
@@ -628,8 +761,14 @@ export function mountTeamManager(root, auth = null) {
     }
   }
 
-  function handleAuthChange(session) {
-    if (session && teams.length) {
+  async function handleAuthChange(session) {
+    if (!session) {
+      activeUserKey = "";
+      return;
+    }
+
+    await loadUserDataFromServer(session);
+    if (teams.length) {
       refreshDashboard({ silent: true });
     }
   }

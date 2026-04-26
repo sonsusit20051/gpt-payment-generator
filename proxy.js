@@ -17,6 +17,7 @@ const ADMIN_CHAT_ID = String(process.env.TELEGRAM_ADMIN_CHAT_ID || '').trim();
 const LOGIN_CODE_TTL_MS = 5 * 60 * 1000;
 const AUTH_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const RESEND_GAP_MS = 30 * 1000;
+const AUTH_COOKIE_NAME = 'm_moi_auth';
 
 const knownTelegramUsersById = new Map();
 const knownTelegramUsersByUsername = new Map();
@@ -37,8 +38,12 @@ const botRuntime = {
 const runtimeState = loadRuntimeState();
 
 hydrateKnownUsersFromState();
+hydrateAuthSessionsFromState();
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
 app.use('/css', express.static(path.join(WEB_ROOT, 'css')));
 app.use('/js', express.static(path.join(WEB_ROOT, 'js')));
@@ -82,7 +87,7 @@ app.get('/auth/telegram/status', (_req, res) => {
 });
 
 app.get('/auth/telegram/session', (req, res) => {
-  const session = validateAuthToken(req.headers['x-community-auth']);
+  const session = validateAuthRequest(req);
   if (!session) {
     res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
     return;
@@ -90,6 +95,7 @@ app.get('/auth/telegram/session', (req, res) => {
 
   res.json({
     authenticated: true,
+    authToken: session.authToken,
     session: sanitizeSession(session)
   });
 });
@@ -209,6 +215,7 @@ app.post('/auth/telegram/verify-code', async (req, res) => {
   };
 
   authSessions.set(authToken, session);
+  persistAuthSessions();
   recordSuccessfulLogin(session, clientStats);
 
   try {
@@ -226,6 +233,7 @@ app.post('/auth/telegram/verify-code', async (req, res) => {
     console.warn('Telegram admin login notice failed:', error.message);
   }
 
+  setAuthCookie(res, authToken, session.expiresAt);
   res.json({
     ok: true,
     authToken,
@@ -234,16 +242,18 @@ app.post('/auth/telegram/verify-code', async (req, res) => {
 });
 
 app.post('/auth/telegram/logout', (req, res) => {
-  const token = String(req.headers['x-community-auth'] || '').trim();
+  const token = getAuthTokenFromRequest(req);
   if (token) {
     authSessions.delete(token);
+    persistAuthSessions();
   }
 
+  clearAuthCookie(res);
   res.json({ ok: true });
 });
 
 app.post('/auth/telegram/admin-session', async (req, res) => {
-  const session = validateAuthToken(req.headers['x-community-auth']);
+  const session = validateAuthRequest(req);
   if (!session) {
     res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
     return;
@@ -265,8 +275,43 @@ app.post('/auth/telegram/admin-session', async (req, res) => {
   }
 });
 
+app.get('/auth/telegram/user-data', (req, res) => {
+  const session = validateAuthRequest(req);
+  if (!session) {
+    res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
+    return;
+  }
+
+  const userData = getStoredUserData(session);
+  res.json({
+    ok: true,
+    user: {
+      telegramId: session.telegramId,
+      username: session.username || '',
+      displayName: session.displayName || ''
+    },
+    data: userData
+  });
+});
+
+app.put('/auth/telegram/user-data', (req, res) => {
+  const session = validateAuthRequest(req);
+  if (!session) {
+    res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
+    return;
+  }
+
+  const userData = normalizeUserData(req.body?.data);
+  saveUserData(session, userData);
+
+  res.json({
+    ok: true,
+    data: getStoredUserData(session)
+  });
+});
+
 app.use('/api', (req, res, next) => {
-  const session = validateAuthToken(req.headers['x-community-auth']);
+  const session = validateAuthRequest(req);
   if (!session) {
     res.status(401).json({ error: 'Bạn cần đăng nhập Telegram trước khi dùng Team Manager.' });
     return;
@@ -512,6 +557,114 @@ function recordSuccessfulLogin(session, clientStats) {
     lastLoginAt: new Date().toISOString()
   };
   persistRuntimeState();
+}
+
+function hydrateAuthSessionsFromState() {
+  const sessions = Array.isArray(runtimeState.authSessions) ? runtimeState.authSessions : [];
+  let changed = false;
+
+  for (const rawSession of sessions) {
+    const session = normalizeStoredSession(rawSession);
+    if (!session) {
+      changed = true;
+      continue;
+    }
+    authSessions.set(session.authToken, session);
+  }
+
+  if (changed || sessions.length !== authSessions.size) {
+    persistAuthSessions();
+  }
+}
+
+function persistAuthSessions() {
+  const now = Date.now();
+  runtimeState.authSessions = Array.from(authSessions.values()).filter((session) => {
+    const expiresAt = new Date(session.expiresAt).getTime();
+    return Number.isFinite(expiresAt) && expiresAt > now;
+  });
+  persistRuntimeState();
+}
+
+function normalizeStoredSession(session) {
+  const authToken = String(session?.authToken || '').trim();
+  const telegramId = String(session?.telegramId || '').trim();
+  const chatId = String(session?.chatId || '').trim();
+  const expiresAtTime = new Date(session?.expiresAt || '').getTime();
+
+  if (!authToken || !telegramId || !chatId || !Number.isFinite(expiresAtTime) || expiresAtTime <= Date.now()) {
+    return null;
+  }
+
+  return {
+    authToken,
+    telegramId,
+    chatId,
+    username: normalizeIdentifier(session?.username || ''),
+    displayName: String(session?.displayName || '').trim() || `ID ${telegramId}`,
+    verifiedAt: String(session?.verifiedAt || new Date().toISOString()),
+    expiresAt: new Date(expiresAtTime).toISOString()
+  };
+}
+
+function getStoredUserData(session) {
+  const key = getUserDataKey(session);
+  const stored = runtimeState.userDataByTelegramId?.[key];
+  return normalizeUserData(stored);
+}
+
+function saveUserData(session, data) {
+  const key = getUserDataKey(session);
+  if (!runtimeState.userDataByTelegramId || typeof runtimeState.userDataByTelegramId !== 'object') {
+    runtimeState.userDataByTelegramId = {};
+  }
+
+  runtimeState.userDataByTelegramId[key] = {
+    telegramId: String(session.telegramId || ''),
+    username: session.username || '',
+    displayName: session.displayName || '',
+    updatedAt: new Date().toISOString(),
+    ...normalizeUserData(data)
+  };
+
+  persistRuntimeState();
+}
+
+function getUserDataKey(session) {
+  return String(session?.telegramId || '').trim();
+}
+
+function normalizeUserData(value) {
+  const data = value && typeof value === 'object' ? value : {};
+  return {
+    teams: Array.isArray(data.teams) ? data.teams.map(normalizeStoredTeam).filter(Boolean) : []
+  };
+}
+
+function normalizeStoredTeam(team) {
+  if (!team || typeof team !== 'object') return null;
+
+  const accountId = String(team.accountId || team.account?.id || '').trim();
+  const accessToken = String(team.accessToken || team.sessions?.accessToken || '').trim();
+  if (!accountId || !accessToken) return null;
+
+  const maxMembers = Number.parseInt(team.maxMembers, 10);
+  const cachedMembers = Array.isArray(team.lastMembers) ? team.lastMembers.slice(0, MAX_LIST_LIMIT) : [];
+  const lastMemberCount = Number.parseInt(team.lastMemberCount, 10);
+
+  return {
+    name: String(team.name || '').trim(),
+    email: String(team.email || '').trim(),
+    accessToken,
+    accountId,
+    maxMembers: Number.isFinite(maxMembers) && maxMembers > 0 ? maxMembers : 0,
+    autoKickEnabled: Boolean(team.autoKickEnabled),
+    lastMembers: cachedMembers,
+    lastMemberCount: Number.isFinite(lastMemberCount) && lastMemberCount >= 0 ? lastMemberCount : cachedMembers.length,
+    lastStatus: String(team.lastStatus || 'unknown').trim() || 'unknown',
+    lastError: String(team.lastError || '').slice(0, 2000),
+    lastSyncedAt: String(team.lastSyncedAt || '').trim()
+  };
 }
 
 function isBannedIdentifier(identifier) {
@@ -801,7 +954,11 @@ function loadRuntimeState() {
           : []
       },
       knownUsers: Array.isArray(raw?.knownUsers) ? raw.knownUsers : [],
-      userStatsById: raw?.userStatsById && typeof raw.userStatsById === 'object' ? raw.userStatsById : {}
+      userStatsById: raw?.userStatsById && typeof raw.userStatsById === 'object' ? raw.userStatsById : {},
+      authSessions: Array.isArray(raw?.authSessions) ? raw.authSessions : [],
+      userDataByTelegramId: raw?.userDataByTelegramId && typeof raw.userDataByTelegramId === 'object'
+        ? raw.userDataByTelegramId
+        : {}
     };
   } catch (error) {
     console.warn(`Failed to load runtime state: ${error.message}`);
@@ -820,13 +977,23 @@ function createDefaultRuntimeState() {
       usernames: []
     },
     knownUsers: [],
-    userStatsById: {}
+    userStatsById: {},
+    authSessions: [],
+    userDataByTelegramId: {}
   };
 }
 
 function persistRuntimeState() {
   fs.mkdirSync(path.dirname(STATE_FILE_PATH), { recursive: true });
   fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(runtimeState, null, 2));
+}
+
+function validateAuthRequest(req) {
+  return validateAuthToken(getAuthTokenFromRequest(req));
+}
+
+function getAuthTokenFromRequest(req) {
+  return String(req.headers['x-community-auth'] || parseCookies(req.headers.cookie)[AUTH_COOKIE_NAME] || '').trim();
 }
 
 function validateAuthToken(tokenValue) {
@@ -838,10 +1005,54 @@ function validateAuthToken(tokenValue) {
 
   if (new Date(session.expiresAt).getTime() <= Date.now()) {
     authSessions.delete(token);
+    persistAuthSessions();
     return null;
   }
 
   return session;
+}
+
+function parseCookies(cookieHeader) {
+  return String(cookieHeader || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((cookies, part) => {
+      const separatorIndex = part.indexOf('=');
+      if (separatorIndex === -1) return cookies;
+      const key = part.slice(0, separatorIndex).trim();
+      const value = part.slice(separatorIndex + 1).trim();
+      if (key) {
+        cookies[key] = safeDecodeURIComponent(value);
+      }
+      return cookies;
+    }, {});
+}
+
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function setAuthCookie(res, authToken, expiresAt) {
+  const expires = new Date(expiresAt);
+  res.cookie(AUTH_COOKIE_NAME, authToken, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: false,
+    expires
+  });
+}
+
+function clearAuthCookie(res) {
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: false
+  });
 }
 
 function formatTelegramHandle(user) {

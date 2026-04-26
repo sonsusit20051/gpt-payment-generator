@@ -26,6 +26,7 @@ export function mountTelegramAuth() {
   return {
     isLoggedIn,
     getAuthToken,
+    getSession,
     ensureAuthenticated,
     openModal,
     logout,
@@ -87,9 +88,7 @@ export function mountTelegramAuth() {
 
   async function init() {
     await loadBotMeta();
-    if (state.session?.authToken) {
-      await validateStoredSession();
-    }
+    await validateStoredSession();
     render();
   }
 
@@ -119,6 +118,10 @@ export function mountTelegramAuth() {
 
   function getAuthToken() {
     return isLoggedIn() ? state.session?.authToken || "" : "";
+  }
+
+  function getSession() {
+    return isLoggedIn() ? state.session : null;
   }
 
   function loadStoredSession() {
@@ -166,7 +169,8 @@ export function mountTelegramAuth() {
         headers: buildAuthHeaders()
       });
       persistSession({
-        ...state.session,
+        ...(state.session || {}),
+        authToken: data.authToken || state.session?.authToken || "",
         ...data.session
       });
     } catch {
@@ -325,7 +329,7 @@ export function mountTelegramAuth() {
     const { notifyServer = false, silent = false } = options;
     const currentToken = state.session?.authToken || "";
 
-    if (notifyServer && currentToken) {
+    if (notifyServer) {
       try {
         await fetchJson("/auth/telegram/logout", {
           method: "POST",
@@ -440,6 +444,7 @@ export function mountTelegramAuth() {
     try {
       response = await fetch(`${API_BASE}${path}`, {
         ...options,
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(options.headers || {})
